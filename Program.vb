@@ -109,7 +109,6 @@ Class Program
 
         SetThreadExecutionState(EXECUTION_STATE.ES_SYSTEM_REQUIRED)
 
-
         Await Task.Delay(Threading.Timeout.Infinite)
     End Function
 
