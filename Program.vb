@@ -5,6 +5,7 @@ Imports Newtonsoft.Json
 Class Program
 
     Public Client As DiscordClient
+    Public FileLogger As BasicFileLogger
 
     Public Shared Sub Main(args As String())
         Dim prog = New Program()
@@ -12,6 +13,10 @@ Class Program
     End Sub
 
     Public Async Function RunBotAsync() As Task
+        ' Initialize file logger
+        Me.FileLogger = New BasicFileLogger("log.txt")
+
+        ' Load token
         Dim json = IO.File.ReadAllText("config.json", New Text.UTF8Encoding(False))
 
         Dim cfgJson = JsonConvert.DeserializeObject(Of ConfigJson)(json)
@@ -21,12 +26,15 @@ Class Program
  _
             .AutoReconnect = True,
             .LogLevel = LogLevel.Debug,
-            .UseInternalLogHandler = True
+            .UseInternalLogHandler = True,
+            .DateTimeFormat = "yyyy-MM-dd HH:mm:ss"
         }
 
+        ' Initialize client
         Me.Client = New DiscordClient(cfg)
 
 
+        ' Attach handlers
         AddHandler AppDomain.CurrentDomain.FirstChanceException, AddressOf Me.FirstChanceException
         AddHandler AppDomain.CurrentDomain.UnhandledException, AddressOf Me.UnhandledException
         AddHandler AppDomain.CurrentDomain.ProcessExit, AddressOf Me.ProcessExit
@@ -104,14 +112,24 @@ Class Program
 
         AddHandler Me.Client.WebhooksUpdated, AddressOf Me.WebhooksUpdated
 
+        AddHandler Me.Client.DebugLogger.LogMessageReceived, AddressOf Me.LogMessageReceived
 
+
+        ' Start client
         Await Me.Client.ConnectAsync()
 
+        ' Tells windows to not go to sleep/standby
         SetThreadExecutionState(EXECUTION_STATE.ES_SYSTEM_REQUIRED)
 
+        ' Keep the program running
         Await Task.Delay(Threading.Timeout.Infinite)
     End Function
 
+
+    Private Sub LogMessageReceived(sender As Object, e As DebugLogMessageEventArgs)
+        ' Send the log-message to file
+        Me.FileLogger.WriteLog($"[{e.Timestamp.ToString("yyyy-MM-dd HH:mm:ss")}] [{e.Application}] [{e.Level}] {e.Message}{If(e.Exception IsNot Nothing, $"\n{e.Exception}", "")}")
+    End Sub
 
     Private Function WebhooksUpdated(e As WebhooksUpdateEventArgs) As Task
         AutoLog(LogLevel.Debug, "Raised")
@@ -360,6 +378,7 @@ Class Program
 
     Private Sub ProcessExit(sender As Object, e As System.EventArgs)
         AutoLog(LogLevel.Debug, "Raised")
+        Me.FileLogger.Dispose()
     End Sub
 
     Private Sub UnhandledException(sender As Object, e As UnhandledExceptionEventArgs)
@@ -383,6 +402,7 @@ Public Structure ConfigJson
     <JsonProperty("Prefix")>
     Public Property CommandPrefix As String
 End Structure
+
 
 Module DenyEnergySaving
     'Because I run this testbot on windows
